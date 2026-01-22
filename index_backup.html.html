@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>打工蛇 V7.0：完美商业版</title>
+    <style>
+        body {
+            margin: 0; padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            font-family: 'Consolas', monospace;
+            touch-action: none; user-select: none; -webkit-user-select: none;
+        }
+        
+        #game-container {
+            position: relative; width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            background: linear-gradient(135deg, #111 0%, #222 100%); 
+            background-size: cover; background-position: center;
+        }
+
+        canvas {
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+            border: 2px solid #444;
+            background: rgba(0, 0, 0, 0.6); 
+            backdrop-filter: blur(2px);
+        }
+
+        /* 顶部UI */
+        #ui-bar {
+            position: absolute; top: 0; left: 0; width: 100%;
+            padding: 10px 0; background: rgba(0, 0, 0, 0.9);
+            border-bottom: 1px solid #444;
+            display: flex; flex-direction: column; align-items: center; z-index: 10;
+        }
+        #xp-container {
+            width: 80%; height: 10px; background: #222; border-radius: 10px;
+            margin-top: 5px; overflow: hidden; border: 1px solid #555;
+        }
+        #xp-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #00c6ff, #0072ff);
+            transition: width 0.2s ease; box-shadow: 0 0 10px #00c6ff;
+        }
+        #info-row {
+            display: flex; justify-content: space-between;
+            width: 90%; color: #fff; font-size: 14px; font-weight: bold;
+        }
+        .highlight { color: #00e676; }
+
+        /* 弹窗通用样式 */
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 20;
+        }
+        h1 { color: #fff; font-size: 28px; margin-bottom: 5px; text-align: center; }
+        .sub-title { color: #888; margin-bottom: 20px; text-align: center; padding: 0 20px; font-size: 14px; line-height: 1.5; }
+        .comfort-text { color: #ffd700; font-style: italic; margin-top: 5px; font-size: 13px; }
+
+        .btn-group { display: flex; flex-direction: column; gap: 15px; width: 70%; max-width: 300px; }
+        
+        button {
+            padding: 15px; font-size: 16px; border: none; border-radius: 8px;
+            cursor: pointer; font-weight: bold; color: white; text-transform: uppercase;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+        
+        .btn-easy { background: linear-gradient(45deg, #43cea2, #185a9d); }
+        .btn-hard { background: linear-gradient(45deg, #ff9966, #ff5e62); }
+        .btn-hell { background: linear-gradient(45deg, #cb2d3e, #ef473a); border: 1px solid red; }
+        
+        /* 复活按钮特效 */
+        .btn-free { background: linear-gradient(45deg, #00b09b, #96c93d); box-shadow: 0 0 15px #96c93d; animation: pulse 2s infinite; }
+        .btn-ad { background: linear-gradient(45deg, #f7971e, #ffd200); color: #000; box-shadow: 0 0 15px #ffd200; animation: pulse 2s infinite; }
+        .btn-restart { background: transparent; border: 1px solid #555; color: #888; font-size: 12px; padding: 10px; margin-top: 10px; }
+        
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
+
+        .hidden { display: none !important; }
+        .shield-active { border: 2px solid gold !important; box-shadow: 0 0 20px gold !important; }
+
+        /* 赞赏按钮 (右下角) */
+        #donate-btn {
+            position: absolute; bottom: 20px; right: 20px;
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: white; padding: 10px 15px; border-radius: 50px;
+            font-size: 12px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 75, 43, 0.4); z-index: 15;
+            display: flex; align-items: center; gap: 5px;
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float { 0% { transform: translateY(0); } 50% { transform: translateY(-5px); } 100% { transform: translateY(0); } }
+
+        /* 赞赏弹窗内容 */
+        #donate-content img { width: 200px; height: 200px; border-radius: 10px; border: 2px solid #fff; margin: 15px 0; }
+        #donate-close { background: #333; margin-top: 10px; }
+
+        .float-text {
+            position: absolute; color: #ffd700; font-weight: bold;
+            pointer-events: none; animation: floatUp 0.8s ease-out forwards;
+            font-size: 16px; text-shadow: 0 0 5px black; z-index: 15;
+        }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-40px); opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="ui-bar">
+            <div id="info-row">
+                <span id="role-display">职位: 实习生</span>
+                <span id="xp-text">EXP: 0/100</span>
+            </div>
+            <div id="xp-container"><div id="xp-fill"></div></div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- 主弹窗 (开始/结束/复活) -->
+        <div id="modal" class="modal-overlay">
+            <h1 id="modal-title">打工蛇 V7.0</h1>
+            <div class="sub-title" id="modal-msg">
+                抢夺任务，拒绝超时<br>
+                <span style="color:#e91e63;">注意：任务闪烁时即将消失！</span>
+            </div>
+            
+            <div id="btn-container" class="btn-group">
+                <button class="btn-easy" onclick="startGame(1)">🐟 摸鱼模式</button>
+                <button class="btn-hard" onclick="startGame(2)">⚡ 996模式</button>
+                <button class="btn-hell" onclick="startGame(3)">💀 007模式</button>
+            </div>
+            
+            <!-- 免费复活 -->
+            <button id="free-revive-btn" class="btn-free hidden" onclick="reviveGame()">✨ 新手光环：免费复活</button>
+            
+            <!-- 广告复活 -->
+            <button id="ad-revive-btn" class="btn-ad hidden" onclick="watchAdToRevive()">📺 看视频复活 (保留职位)</button>
+            
+            <!-- 重新开始 -->
+            <button id="restart-btn" class="btn-restart hidden" onclick="showDifficultySelect()">太累了，清零重开</button>
+        </div>
+
+        <!-- 赞赏弹窗 -->
+        <div id="donate-modal" class="modal-overlay hidden">
+            <h1>众筹植发</h1>
+            <p style="color:#ddd; font-size:14px; text-align:center; padding:0 20px;">
+                代码写太晚发量告急<br>V我1块钱，救救秃头开发者👨‍🦲
+            </p>
+            <div id="donate-content">
+                <!-- 这里的src是你的收款码图片 -->
+                <img src="pay.png" alt="收款码" onerror="this.src='https://via.placeholder.com/200x200?text=QR+Code'">
+            </div>
+            <button id="donate-close" onclick="closeDonate()">下次一定</button>
+        </div>
+
+        <!-- 右下角悬浮按钮 -->
+        <div id="donate-btn" onclick="openDonate()">
+            <span>🧧</span> 众筹植发 (1元)
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // --- 资源配置 ---
+    const assets = { bg: new Image(), head: new Image(), file: new Image(), coffee: new Image(), excel: new Image(), bing: new Image(), pay: new Image() };
+    const assetsLoaded = { bg: false, head: false, file: false, coffee: false, excel: false, bing: false };
+
+    function loadAsset(name, src) {
+        assets[name].src = src;
+        assets[name].onload = () => { 
+            assetsLoaded[name] = true; 
+            if(name === 'bg') document.getElementById('game-container').style.backgroundImage = `url('${src}')`;
+        };
+        assets[name].onerror = () => { assetsLoaded[name] = false; };
+    }
+
+    loadAsset('bg', 'bg.jpg');
+    loadAsset('head', 'head.png');
+    loadAsset('file', 'file.png');
+    loadAsset('coffee', 'coffee.png');
+    loadAsset('excel', 'excel.png');
+    loadAsset('bing', 'bing.png');
+    loadAsset('pay', 'pay.png'); // 加载收款码
+
+    const foodConfig = {
+        file:   { xp: 10,  prob: 0.5,  color: '#ff4757', minTime: 6, maxTime: 10 },
+        coffee: { xp: 15,  prob: 0.3,  color: '#00d2ff', minTime: 5, maxTime: 8 },
+        excel:  { xp: 20,  prob: 0.15, color: '#2ed573', minTime: 4, maxTime: 7 },
+        bing:   { xp: 25,  prob: 0.05, color: '#ffa502', minTime: 3, maxTime: 5 }
+    };
+
+    // --- 文案库 ---
+    const comfortQuotes = [
+        "虽然被优化了，但生活还得继续。",
+        "禁止内耗，去码头整点薯条。",
+        "休息一下，下家公司工资翻倍。",
+        "别灰心，可能是老板不懂欣赏。",
+        "只要心态好，哪里都是巴厘岛。",
+        "再坚持一下，生活总会有惊喜。",
+        "打工而已，别把身体搞垮了。",
+        "今天的撤退，是为了明天的反攻。"
+    ];
+
+    const gridSize = 25; 
+    let tileCountX, tileCountY;
+    let gameSpeed = 5;
+    let lastRenderTime = 0;
+    let isGameRunning = false;
+    let snake = [];
+    let velocity = { x: 0, y: 0 };
+    let foodList = []; 
+    let currentXP = 0;
+    let maxXP = 50;
+    let level = 0;
+    let xpMultiplier = 1;
+    let invincibilityTimer = 0; 
+    
+    // --- 商业逻辑变量 ---
+    let hasUsedFreeRevive = false; // 是否用过免费复活
+    
+    const words = ['摸鱼', '周报', '会议', '甩锅', '画饼', '内卷'];
+    const roles = ['实习生', '试用期', '正式工', '组长', '经理', '总监', 'VP', 'CEO'];
+    let touchStartX = 0, touchStartY = 0;
+
+    function resize() {
+        const width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+        const height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+        canvas.width = Math.floor((width - 20) / gridSize) * gridSize;
+        canvas.height = Math.floor((height - 90) / gridSize) * gridSize;
+        tileCountX = canvas.width / gridSize;
+        tileCountY = canvas.height / gridSize;
+    }
+    window.addEventListener('resize', resize);
+    resize(); 
+
+    function main(currentTime) {
+        window.requestAnimationFrame(main);
+        if (!isGameRunning) return;
+        const secondsSinceLastRender = (currentTime - lastRenderTime) / 1000;
+        if (secondsSinceLastRender < 1 / gameSpeed) return;
+        lastRenderTime = currentTime;
+        update();
+        draw();
+    }
+
+    function showDifficultySelect() {
+        document.getElementById('modal').classList.remove('hidden');
+        document.getElementById('modal-title').innerText = "打工蛇 V7.0";
+        document.getElementById('modal-msg').innerHTML = "抢夺任务，拒绝超时<br><span style='color:#e91e63;'>注意：任务闪烁时即将消失！</span>";
+        document.getElementById('btn-container').classList.remove('hidden');
+        
+        // 隐藏结算按钮
+        document.getElementById('free-revive-btn').classList.add('hidden');
+        document.getElementById('ad-revive-btn').classList.add('hidden');
+        document.getElementById('restart-btn').classList.add('hidden');
+        
+        // 重置复活状态
+        hasUsedFreeRevive = false; 
+    }
+
+    function startGame(difficulty) {
+        resize();
+        if (difficulty === 1) { gameSpeed = 6; xpMultiplier = 1; }
+        else if (difficulty === 2) { gameSpeed = 10; xpMultiplier = 2; }
+        else if (difficulty === 3) { gameSpeed = 15; xpMultiplier = 4; }
+
+        document.getElementById('modal').classList.add('hidden');
+        if (!isGameRunning) resetGameFull();
+        
+        invincibilityTimer = 30; 
+        canvas.classList.add('shield-active');
+        isGameRunning = true;
+        lastRenderTime = performance.now();
+        window.requestAnimationFrame(main);
+    }
+
+    function resetGameFull() {
+        resetSnakeAndFood();
+        currentXP = 0; maxXP = 50; level = 0;
+        hasUsedFreeRevive = false; // 重置免费机会
+        updateUI();
+    }
+
+    function resetSnakeAndFood() {
+        const startX = Math.floor(tileCountX / 2);
+        const startY = Math.floor(tileCountY / 2);
+        snake = [{ x: startX, y: startY, text: '我' }, { x: startX - 1, y: startY, text: '' }, { x: startX - 2, y: startY, text: '' }];
+        velocity = { x: 1, y: 0 };
+        foodList = []; 
+        spawnFood(true);
+    }
+
+    function spawnFood(force = false) {
+        if (!force && foodList.length >= 5) return;
+        let rand = Math.random();
+        let type = 'file';
+        if (rand < 0.05) type = 'bing';
+        else if (rand < 0.20) type = 'excel';
+        else if (rand < 0.50) type = 'coffee';
+        
+        const config = foodConfig[type];
+        let newFood = {
+            x: Math.floor(Math.random() * tileCountX),
+            y: Math.floor(Math.random() * tileCountY),
+            type: type,
+            life: (config.minTime + Math.random() * (config.maxTime - config.minTime)) * gameSpeed,
+            maxLife: 0 
+        };
+        newFood.maxLife = newFood.life;
+        let onSnake = false;
+        snake.forEach(s => { if (s.x === newFood.x && s.y === newFood.y) onSnake = true; });
+        if (onSnake) return spawnFood(force);
+        foodList.push(newFood);
+    }
+
+    function update() {
+        if (invincibilityTimer > 0) {
+            invincibilityTimer--;
+            if (invincibilityTimer === 0) canvas.classList.remove('shield-active');
+        }
+
+        if (Math.random() < 0.1) spawnFood();
+        if (foodList.length === 0) spawnFood(true);
+        for (let i = foodList.length - 1; i >= 0; i--) {
+            foodList[i].life--;
+            if (foodList[i].life <= 0) foodList.splice(i, 1);
+        }
+
+        const head = { x: snake[0].x + velocity.x, y: snake[0].y + velocity.y };
+        const hitWall = head.x < 0 || head.x >= tileCountX || head.y < 0 || head.y >= tileCountY;
+        const hitSelf = checkSelfCollision(head);
+
+        if (hitWall || hitSelf) {
+            if (invincibilityTimer > 0) {
+                if (hitWall) return; 
+            } else {
+                gameOver(hitWall ? "你被裁员了" : "内耗严重");
+                return;
+            }
+        }
+
+        snake.unshift(head);
+        let ateIndex = -1;
+        for (let i = 0; i < foodList.length; i++) {
+            if (head.x === foodList[i].x && head.y === foodList[i].y) {
+                ateIndex = i; break;
+            }
+        }
+
+        if (ateIndex !== -1) {
+            let foodItem = foodList[ateIndex];
+            let config = foodConfig[foodItem.type];
+            let gain = config.xp * xpMultiplier;
+            addXP(gain);
+            createFloatText(`+${gain} XP`, head.x, head.y);
+            snake[1].text = words[Math.floor(Math.random() * words.length)];
+            foodList.splice(ateIndex, 1);
+        } else {
+            snake.pop();
+        }
+    }
+
+    function checkSelfCollision(head) {
+        for (let i = 0; i < snake.length; i++) {
+            if (head.x === snake[i].x && head.y === snake[i].y) return true;
+        }
+        return false;
+    }
+
+    function addXP(amount) {
+        currentXP += amount;
+        if (currentXP >= maxXP) {
+            currentXP -= maxXP;
+            maxXP = Math.floor(maxXP * 1.5);
+            level++;
+            if(level >= roles.length) level = roles.length - 1;
+            createFloatText("升职加薪!", snake[0].x, snake[0].y);
+        }
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('role-display').innerHTML = `职位: <span class="highlight">${roles[level]}</span>`;
+        document.getElementById('xp-text').innerText = `EXP: ${currentXP}/${maxXP}`;
+        const percent = Math.min((currentXP / maxXP) * 100, 100);
+        document.getElementById('xp-fill').style.width = `${percent}%`;
+    }
+
+    function createFloatText(text, x, y) {
+        const div = document.createElement('div');
+        div.className = 'float-text';
+        div.innerText = text;
+        const rect = canvas.getBoundingClientRect();
+        div.style.left = (rect.left + x * gridSize) + 'px';
+        div.style.top = (rect.top + y * gridSize) + 'px';
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), 800);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        foodList.forEach(f => {
+            if (f.life < f.maxLife * 0.3 && Math.floor(Date.now() / 100) % 2 === 0) ctx.globalAlpha = 0.3;
+            else ctx.globalAlpha = 1.0;
+            let img = assets[f.type];
+            if (assetsLoaded[f.type]) ctx.drawImage(img, f.x * gridSize, f.y * gridSize, gridSize, gridSize);
+            else { ctx.fillStyle = foodConfig[f.type].color; ctx.fillRect(f.x * gridSize + 2, f.y * gridSize + 2, gridSize - 4, gridSize - 4); }
+            ctx.globalAlpha = 1.0;
+        });
+
+        snake.forEach((segment, index) => {
+            const x = segment.x * gridSize;
+            const y = segment.y * gridSize;
+            if (index === 0) {
+                if (assetsLoaded.head) ctx.drawImage(assets.head, x, y, gridSize, gridSize);
+                else { ctx.fillStyle = '#ffcc00'; ctx.beginPath(); ctx.arc(x + gridSize/2, y + gridSize/2, gridSize/2, 0, Math.PI * 2); ctx.fill(); }
+                if (invincibilityTimer > 0 && Math.floor(Date.now() / 100) % 2 === 0) { ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.strokeRect(x, y, gridSize, gridSize); }
+            } else {
+                ctx.fillStyle = (invincibilityTimer > 0) ? '#81c784' : '#4CAF50';
+                ctx.fillRect(x + 1, y + 1, gridSize - 2, gridSize - 2);
+                if (segment.text) { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.fillText(segment.text, x + gridSize/2, y + gridSize - 8); }
+            }
+        });
+    }
+
+    // --- GameOver 逻辑 (V7.0 核心) ---
+    function gameOver(reason) {
+        isGameRunning = false;
+        
+        document.getElementById('modal').classList.remove('hidden');
+        document.getElementById('modal-title').innerText = reason;
+        
+        // 随机选择一条安慰文案
+        const randomQuote = comfortQuotes[Math.floor(Math.random() * comfortQuotes.length)];
+        document.getElementById('modal-msg').innerHTML = 
+            `最终职位: ${roles[level]}<br><div class="comfort-text">“${randomQuote}”</div>`;
+        
+        document.getElementById('btn-container').classList.add('hidden');
+        
+        // 逻辑判断：是否用过免费机会
+        if (!hasUsedFreeRevive) {
+            // 没用过 -> 显示免费复活
+            document.getElementById('free-revive-btn').classList.remove('hidden');
+            document.getElementById('ad-revive-btn').classList.add('hidden');
+        } else {
+            // 用过了 -> 显示看广告复活
+            document.getElementById('free-revive-btn').classList.add('hidden');
+            document.getElementById('ad-revive-btn').classList.remove('hidden');
+        }
+        
+        // 永远显示重开按钮
+        document.getElementById('restart-btn').classList.remove('hidden');
+    }
+
+    function reviveGame() {
+        hasUsedFreeRevive = true; // 标记已使用免费机会
+        resetSnakeAndFood(); 
+        document.getElementById('modal').classList.add('hidden');
+        invincibilityTimer = 30; 
+        canvas.classList.add('shield-active');
+        isGameRunning = true;
+        lastRenderTime = performance.now();
+        window.requestAnimationFrame(main);
+    }
+
+    function watchAdToRevive() {
+        alert("【模拟广告】\n你正在观看一段精彩广告...\n\n(复活成功！)");
+        reviveGame();
+        // 注意：复活后 hasUsedFreeRevive 依然是 true，所以下次死还得看广告
+    }
+
+    // --- 赞赏逻辑 ---
+    function openDonate() {
+        document.getElementById('donate-modal').classList.remove('hidden');
+    }
+    function closeDonate() {
+        document.getElementById('donate-modal').classList.add('hidden');
+    }
+
+    // --- 控制 ---
+    window.addEventListener('keydown', e => {
+        if (!isGameRunning) return;
+        switch(e.key) {
+            case 'ArrowUp': if(velocity.y !== 1) velocity = {x: 0, y: -1}; break;
+            case 'ArrowDown': if(velocity.y !== -1) velocity = {x: 0, y: 1}; break;
+            case 'ArrowLeft': if(velocity.x !== 1) velocity = {x: -1, y: 0}; break;
+            case 'ArrowRight': if(velocity.x !== -1) velocity = {x: 1, y: 0}; break;
+        }
+    });
+    document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; }, {passive: false});
+    document.addEventListener('touchmove', e => {
+        e.preventDefault();
+        if (!isGameRunning) return;
+        let dx = e.touches[0].clientX - touchStartX;
+        let dy = e.touches[0].clientY - touchStartY;
+        if (Math.abs(dx) > Math.abs(dy)) {
+            if (Math.abs(dx) > 10) { 
+                if (dx > 0 && velocity.x !== -1) velocity = {x: 1, y: 0};
+                else if (dx < 0 && velocity.x !== 1) velocity = {x: -1, y: 0};
+                touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+            }
+        } else {
+            if (Math.abs(dy) > 10) {
+                if (dy > 0 && velocity.y !== -1) velocity = {x: 0, y: 1};
+                else if (dy < 0 && velocity.y !== 1) velocity = {x: 0, y: -1};
+                touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+            }
+        }
+    }, {passive: false});
+</script>
+</body>
+</html>
